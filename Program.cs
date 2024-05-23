@@ -75,10 +75,23 @@ namespace WebApplicationProject
                 {
                     b
                     .RequireClaim(ClaimTypes.NameIdentifier)
-                    .RequireRole("Employee");
+                    .RequireClaim(ClaimTypes.Role, "Employee");
 
                 });
-                
+
+                option.AddPolicy("ClientOnly", b =>
+                {
+                    b.RequireClaim(ClaimTypes.NameIdentifier)
+                    .RequireClaim(ClaimTypes.Role, "Client");
+                    
+                });
+
+                option.AddPolicy("ClientOrEmployee", b =>
+                {
+                    b.RequireClaim(ClaimTypes.NameIdentifier)
+                    .RequireClaim(ClaimTypes.Role, "Client" , "Employee");
+
+                });
             });
 
 

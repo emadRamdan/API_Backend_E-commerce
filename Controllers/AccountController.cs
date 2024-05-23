@@ -6,7 +6,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using WebApplicationProject.DAL.models;
+using WebApplicationProject.DAL.UnitOfWorkContainer;
 using WebApplicationProject.DBL.DTOS;
+using WebApplicationProject.DBL.MangersContainers.CartMangerContainer;
+using WebApplicationProject.DBL.MangersContainers.CategoryMangerContainer;
 
 namespace WebApplicationProject.Controllers
 {
@@ -15,10 +18,12 @@ namespace WebApplicationProject.Controllers
     public class AccountController : ControllerBase
     {
         private readonly UserManager<AppUser> _userManger;
+        private readonly ICartManger _CartManger;
         private readonly IConfiguration _configration;
 
-        public  AccountController(UserManager<AppUser> userManager , IConfiguration configuration) { 
+        public  AccountController(UserManager<AppUser> userManager , IConfiguration configuration , ICartManger cartManger) { 
             _userManger = userManager;
+            _CartManger = cartManger; 
             _configration = configuration;
         }
 
@@ -27,19 +32,52 @@ namespace WebApplicationProject.Controllers
             [Route("clients/signup")]
             public async Task<ActionResult> Register(RegisterDto registerDto)
             {
-                //vaidatae incomming data 
-                if (!ModelState.IsValid)
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+
+            string fileName;
+            try
+            {
+                if (registerDto.UserImage == null || registerDto.UserImage.Length == 0)
                 {
-                    return BadRequest(ModelState);
+                    fileName = "user.jpg";
+
+                }
+                else
+                {
+                    if (!registerDto.UserImage.ContentType.StartsWith("image/"))
+                    {
+                        return BadRequest("Invalid file type. Only image files are allowed.");
+                    }
+
+                    var UploadeFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploades");
+                    fileName = Guid.NewGuid().ToString() + Path.GetExtension(registerDto.UserImage.FileName);
+                    var FilePath = Path.Combine(UploadeFolderPath, fileName);
+
+                    using (var stream = new FileStream(FilePath, FileMode.Create))
+                    {
+                        await registerDto.UserImage.CopyToAsync(stream);
+                    }
+
                 }
 
-                // creat new user 
+                Address userAddress = new Address()
+                {
+                    city = registerDto.City,
+                    state = registerDto.State,
+                    postalCode = registerDto.Postalcode,
+                    country = registerDto.Country
+                };
                 AppUser user = new AppUser
                 {
                     UserName = registerDto.UserName,
                     Email = registerDto.Email,
-                    Address = registerDto.address,
-                    PhoneNumber = registerDto.PhoneNumber
+                    Address = userAddress ,
+                    PhoneNumber = registerDto.PhoneNumber,
+                    UserImage = fileName
                 };
 
                 //Store  new user 
@@ -49,25 +87,37 @@ namespace WebApplicationProject.Controllers
                     return BadRequest(Result.Errors);
                 }
 
+               var cartDto =  _CartManger.CreatCart(user.Id);
                 // create new claims for the new user 
                 var claims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim (ClaimTypes.Email, user.Email),
-                    new Claim (ClaimTypes.StreetAddress, user.Address.ToString()),
-                    new Claim (ClaimTypes.Role , "Client")
+                    {
+                        new (ClaimTypes.NameIdentifier, user.Id.ToString()),
+                        new  (ClaimTypes.Email, user.Email),
+                        new  (ClaimTypes.StreetAddress, user.Address.ToString()),  
+                        new Claim("CartID" , cartDto.CartId.ToString()),
+                        new  (ClaimTypes.Role , "Client")
 
-                };
+                    };
 
+             
                 await _userManger.AddClaimsAsync(user, claims);
                 return Created();
+
+
             }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+
+            }
+
+        }
         #endregion
 
         #region employee register 
-            [HttpPost]
+        [HttpPost]
             [Route("employees/signup")]
-            public async Task<ActionResult> RegisterEmployees(RegisterDto registerDto)
+            public async Task<ActionResult> RegisterEmployees([FromForm] RegisterDto registerDto)
             {
                 //vaidatae incomming data 
                 if (!ModelState.IsValid)
@@ -75,13 +125,51 @@ namespace WebApplicationProject.Controllers
                     return BadRequest(ModelState);
                 }
 
-                // creat new user 
+
+            //if(registerDto.UserImage)
+            // creat new user 
+            //pass the image string 
+
+            string fileName;
+            try
+            {
+                if (registerDto.UserImage == null || registerDto.UserImage.Length == 0)
+                {
+                    fileName = "user.jpg";
+
+                }
+                else
+                {
+                    if (!registerDto.UserImage.ContentType.StartsWith("image/"))
+                    {
+                        return BadRequest("Invalid file type. Only image files are allowed.");
+                    }
+
+                    var UploadeFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploades");
+                    fileName = Guid.NewGuid().ToString() + Path.GetExtension(registerDto.UserImage.FileName);
+                    var FilePath = Path.Combine(UploadeFolderPath, fileName);
+
+                    using (var stream = new FileStream(FilePath, FileMode.Create))
+                    {
+                        await registerDto.UserImage.CopyToAsync(stream);
+                    }
+
+                }
+
+                Address userAddress = new Address()
+                {
+                    city = registerDto.City,
+                    state = registerDto.State,
+                    postalCode = registerDto.Postalcode,
+                    country = registerDto.Country
+                };
                 AppUser user = new AppUser
                 {
                     UserName = registerDto.UserName,
                     Email = registerDto.Email,
-                    Address = registerDto.address,
-                    PhoneNumber = registerDto.PhoneNumber
+                    Address = userAddress ,
+                    PhoneNumber = registerDto.PhoneNumber ,
+                    UserImage = fileName 
                 };
 
                 //Store  new user 
@@ -103,6 +191,21 @@ namespace WebApplicationProject.Controllers
 
                 await _userManger.AddClaimsAsync(user, claims);
                 return Created();
+
+               
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+
+            }
+
+
+
+
+            /////////////
+
+          
         }
         #endregion
 

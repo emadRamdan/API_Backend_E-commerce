@@ -30,7 +30,7 @@ namespace WebApplicationProject.Controllers
 
         [HttpPost]
         [Route("AddCategory")]
-        //[Authorize(Policy = "EmployeeOnly")]
+        [Authorize(Policy = "EmployeeOnly")]
         public async Task<ActionResult> AddCategory([FromForm] AddCategoryDto category)
         {
             try
